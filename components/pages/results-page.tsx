@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import type React from "react"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Download } from "lucide-react"
 import ScoreCard from "@/components/results/score-card"
@@ -22,12 +23,34 @@ export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps
 
   // Extract summary data from backend response
   const summary = data?.summary || {}
-  const finalScore = summary.confidence || summary.credibilityScore || 0
+  const toNumStrict = (v: any) => {
+    if (typeof v === "number") return v
+    if (typeof v === "string") {
+      const cleaned = v.trim().replace(/%$/, "")
+      const n = Number(cleaned)
+      return Number.isFinite(n) ? n : NaN
+    }
+    return Number(v)
+  }
+  const candidatesExact = [
+    summary.credibilityScore,
+    summary.confidence,
+    data?.visualForensics?.confidence,
+    data?.metadataAnalysis?.confidence,
+    data?.detailedAnalysis?.overallScore,
+    data?.detailedAnalysis?.credibilityScore,
+  ]
+  const firstNumeric = candidatesExact
+    .map(toNumStrict)
+    .find((n) => Number.isFinite(n)) as number | undefined
+  const finalScoreNum = Number.isFinite(firstNumeric as number)
+    ? Math.max(0, Math.min(100, firstNumeric as number))
+    : 0
   const verdict = summary.verdict || "UNKNOWN"
   const confidence = summary.confidence || summary.reliability || "UNKNOWN"
 
   // Determine credibility level based on score
-  const credibilityLevel = finalScore >= 75 ? "authentic" : finalScore >= 50 ? "uncertain" : "suspicious"
+  const credibilityLevel = finalScoreNum >= 75 ? "authentic" : finalScoreNum >= 50 ? "uncertain" : "suspicious"
 
   const credibilityColor =
     credibilityLevel === "authentic" ? "text-success" : credibilityLevel === "uncertain" ? "text-warning" : "text-error"
@@ -46,6 +69,73 @@ export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps
         { id: "analysis", label: "Detailed Analysis" },
         { id: "recommendations", label: "Recommendations" },
       ]
+
+  // Simple progress bar for numeric metrics
+  const ProgressBar = ({ value }: { value: number }) => {
+    const pct = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-foreground/60">Score</span>
+          <span className="text-xs font-semibold text-accent">{pct.toFixed(0)}%</span>
+        </div>
+        <div className="h-2 w-full rounded bg-border/60 overflow-hidden">
+          <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    )
+  }
+
+  // Badge for boolean values
+  const BoolBadge = ({ v }: { v: boolean }) => (
+    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${v ? "bg-success/20 text-success" : "bg-error/20 text-error"}`}>
+      {v ? "Yes" : "No"}
+    </span>
+  )
+
+  // Render arbitrary values in a readable way
+  const renderValue = (val: any): React.ReactNode => {
+    if (val === null || val === undefined) return <span className="text-foreground/50">N/A</span>
+    if (typeof val === "number") return <ProgressBar value={val} />
+    if (typeof val === "boolean") return <BoolBadge v={val} />
+    if (typeof val === "string") return <span className="text-foreground/80 text-sm break-words">{val}</span>
+    if (Array.isArray(val))
+      return (
+        <ul className="list-disc list-inside space-y-1 text-sm text-foreground/80">
+          {val.map((item, idx) => (
+            <li key={idx}>{typeof item === "object" ? renderObject(item) : String(item)}</li>
+          ))}
+        </ul>
+      )
+    if (typeof val === "object") return renderObject(val)
+    return <span className="text-foreground/80 text-sm">{String(val)}</span>
+  }
+
+  const isNumeric = (x: any) => typeof x === "number" && Number.isFinite(x)
+
+  const renderObject = (obj: Record<string, any>): React.ReactNode => {
+    // Surface common keys first
+    const preferredOrder = ["score", "confidence", "probability", "suspicion", "mean", "max", "min"]
+    const keys = Object.keys(obj)
+    const sorted = [
+      ...preferredOrder.filter((k) => keys.includes(k)),
+      ...keys.filter((k) => !preferredOrder.includes(k)),
+    ]
+    return (
+      <div className="grid md:grid-cols-2 gap-3">
+        {sorted.map((k) => (
+          <div key={k} className="p-3 rounded border border-border/50 bg-surface/40">
+            <p className="text-xs text-foreground/60 mb-1 capitalize">{k.replace(/([A-Z])/g, " $1")}</p>
+            {isNumeric(obj[k]) ? (
+              <ProgressBar value={obj[k]} />
+            ) : (
+              <div className="text-sm text-foreground/80">{renderValue(obj[k])}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen px-4 py-12">
@@ -80,7 +170,7 @@ export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps
             <p className="text-foreground/70 mb-4">
               {isImageData ? "Based on forensic and visual analysis" : "Based on document and content analysis"}
             </p>
-            <div className={`text-5xl font-playfair font-bold ${credibilityColor}`}>{finalScore.toFixed(0)}%</div>
+            <div className={`text-5xl font-playfair font-bold ${credibilityColor}`}>{finalScoreNum.toFixed(0)}%</div>
             <p className={`mt-2 text-lg font-semibold ${credibilityColor} uppercase tracking-wide`}>{verdict}</p>
           </div>
           <div>
@@ -162,11 +252,9 @@ export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps
               {data.visualForensics?.analyses ? (
                 <div className="space-y-4">
                   {Object.entries(data.visualForensics.analyses).map(([key, value]: [string, any]) => (
-                    <div key={key} className="p-4 bg-surface rounded border border-border/50">
+                    <div key={key} className="p-4 bg-surface rounded border border-border/50 space-y-3">
                       <p className="font-semibold text-accent capitalize">{key.replace(/([A-Z])/g, " $1")}</p>
-                      <p className="text-foreground/70 text-sm mt-1">
-                        {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
-                      </p>
+                      {renderValue(value)}
                     </div>
                   ))}
                 </div>
@@ -222,11 +310,9 @@ export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps
               {data.detailedAnalysis ? (
                 <div className="grid gap-4">
                   {Object.entries(data.detailedAnalysis).map(([key, value]: [string, any]) => (
-                    <div key={key} className="p-4 bg-surface rounded border border-border/50">
+                    <div key={key} className="p-4 bg-surface rounded border border-border/50 space-y-3">
                       <p className="font-semibold text-accent capitalize">{key.replace(/([A-Z])/g, " $1")}</p>
-                      <p className="text-foreground/70 text-sm mt-1">
-                        {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)}
-                      </p>
+                      {renderValue(value)}
                     </div>
                   ))}
                 </div>

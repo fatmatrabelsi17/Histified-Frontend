@@ -18,9 +18,9 @@ export default function Navbar({ onNavigate }: { onNavigate: (page: string) => v
             className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"
           >
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="font-bold text-primary-foreground text-sm">VC</span>
+              <span className="font-bold text-primary-foreground text-sm">H</span>
             </div>
-            <span className="font-playfair text-xl font-bold text-primary hidden sm:block">VerityCheck</span>
+            <span className="font-playfair text-xl font-bold text-primary hidden sm:block">Histified</span>
           </div>
 
           {/* Desktop Menu */}

@@ -137,7 +137,9 @@ export default function UploadPage({ onFileSelected, onBack }: UploadPageProps) 
               </>
             ) : (
               <>
-                <img src={preview || ""} alt="Preview" className="w-48 h-48 object-cover rounded mx-auto mb-4" />
+                {preview ? (
+                  <img src={preview} alt="Preview" className="w-48 h-48 object-cover rounded mx-auto mb-4" />
+                ) : null}
                 <h3 className="text-xl font-playfair font-bold mb-1">{selectedFile.name}</h3>
                 <p className="text-sm text-foreground/70">{(selectedFile.size / 1024 / 1024).toFixed(2)}MB</p>
               </>

@@ -4,11 +4,9 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Download } from "lucide-react"
 import ScoreCard from "@/components/results/score-card"
-import AnalysisChart from "@/components/results/analysis-chart"
-import SourcesList from "@/components/results/sources-list"
 import RedFlagsList from "@/components/results/red-flags-list"
-import HederaProofs from "@/components/results/hedera-proofs"
-import ExifData from "@/components/results/exif-data"
+import RecommendationsList from "@/components/results/recommendations-list"
+import MetadataSection from "@/components/results/metadata-section"
 
 interface ResultsPageProps {
   data: any
@@ -19,23 +17,35 @@ interface ResultsPageProps {
 export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps) {
   const [activeTab, setActiveTab] = useState("overview")
 
-  const forensicScore = data?.forensic_score || 0
-  const osintScore = data?.osint_score || 0
-  const semanticScore = data?.semantic_score || 0
-  const finalScore = data?.final_score || 0
+  const isImageData = data?.visualForensics !== undefined
+  const isArticleData = data?.detailedAnalysis !== undefined
 
+  // Extract summary data from backend response
+  const summary = data?.summary || {}
+  const finalScore = summary.confidence || summary.credibilityScore || 0
+  const verdict = summary.verdict || "UNKNOWN"
+  const confidence = summary.confidence || summary.reliability || "UNKNOWN"
+
+  // Determine credibility level based on score
   const credibilityLevel = finalScore >= 75 ? "authentic" : finalScore >= 50 ? "uncertain" : "suspicious"
+
   const credibilityColor =
     credibilityLevel === "authentic" ? "text-success" : credibilityLevel === "uncertain" ? "text-warning" : "text-error"
 
-  const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "forensic", label: "Forensic Analysis" },
-    { id: "osint", label: "OSINT Research" },
-    { id: "sources", label: "Sources" },
-    { id: "red-flags", label: "Red Flags" },
-    { id: "hedera", label: "Blockchain" },
-  ]
+  const tabs = isImageData
+    ? [
+        { id: "overview", label: "Overview" },
+        { id: "metadata", label: "Metadata Analysis" },
+        { id: "forensics", label: "Visual Forensics" },
+        { id: "warnings", label: "Warnings" },
+        { id: "recommendations", label: "Recommendations" },
+      ]
+    : [
+        { id: "overview", label: "Overview" },
+        { id: "documentInfo", label: "Document Info" },
+        { id: "analysis", label: "Detailed Analysis" },
+        { id: "recommendations", label: "Recommendations" },
+      ]
 
   return (
     <div className="min-h-screen px-4 py-12">
@@ -64,21 +74,28 @@ export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps
       <div className="max-w-6xl mx-auto mb-12 p-8 rounded border border-accent/20 bg-surface/50">
         <div className="grid md:grid-cols-2 gap-8">
           <div>
-            <h2 className="font-playfair text-2xl font-bold mb-4">Credibility Assessment</h2>
-            <p className="text-foreground/70 mb-4">Based on comprehensive forensic, OSINT, and AI semantic analysis</p>
-            <div className={`text-5xl font-playfair font-bold ${credibilityColor}`}>{finalScore.toFixed(1)}%</div>
-            <p className={`mt-2 text-lg font-semibold ${credibilityColor} uppercase tracking-wide`}>
-              {credibilityLevel === "authentic"
-                ? "Likely Authentic"
-                : credibilityLevel === "uncertain"
-                  ? "Uncertain - Review Required"
-                  : "Likely Fabricated"}
+            <h2 className="font-playfair text-2xl font-bold mb-4">
+              {isImageData ? "Authenticity Assessment" : "Credibility Assessment"}
+            </h2>
+            <p className="text-foreground/70 mb-4">
+              {isImageData ? "Based on forensic and visual analysis" : "Based on document and content analysis"}
             </p>
+            <div className={`text-5xl font-playfair font-bold ${credibilityColor}`}>{finalScore.toFixed(0)}%</div>
+            <p className={`mt-2 text-lg font-semibold ${credibilityColor} uppercase tracking-wide`}>{verdict}</p>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <ScoreCard label="Forensic" score={forensicScore} icon="🔬" />
-            <ScoreCard label="OSINT" score={osintScore} icon="🔍" />
-            <ScoreCard label="Semantic" score={semanticScore} icon="🧠" />
+          <div>
+            <div className="space-y-4">
+              <div className="p-4 rounded border border-border bg-surface/50">
+                <p className="text-sm text-foreground/60 mb-1">Confidence</p>
+                <p className="font-semibold text-accent">{confidence}</p>
+              </div>
+              {summary.explanation && (
+                <div className="p-4 rounded border border-border bg-surface/50">
+                  <p className="text-sm text-foreground/60 mb-1">Assessment</p>
+                  <p className="text-sm text-foreground">{summary.explanation}</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -104,59 +121,124 @@ export default function ResultsPage({ data, fileName, onBack }: ResultsPageProps
         {/* Tab Content */}
         <div className="space-y-8">
           {activeTab === "overview" && (
-            <AnalysisChart forensic={forensicScore} osint={osintScore} semantic={semanticScore} />
-          )}
-
-          {activeTab === "forensic" && (
-            <div className="p-6 rounded border border-border bg-surface/30 space-y-4">
-              <h3 className="font-playfair text-xl font-bold">Forensic Analysis Results</h3>
-              <div className="grid gap-4">
-                {data?.forensic_details?.map((detail: any, idx: number) => (
-                  <div key={idx} className="p-4 bg-surface rounded border border-border/50">
-                    <p className="font-semibold text-accent">{detail.check}</p>
-                    <p className="text-foreground/70 text-sm mt-1">{detail.result}</p>
-                  </div>
-                ))}
-              </div>
+            <div className="p-6 rounded border border-border bg-surface/30">
+              <h3 className="font-playfair text-xl font-bold mb-4">Analysis Overview</h3>
+              {isImageData && data.visualForensics && (
+                <div className="grid md:grid-cols-3 gap-4">
+                  <ScoreCard label="Metadata" score={data.metadataAnalysis?.confidence || 0} icon="📋" />
+                  <ScoreCard label="Visual Forensics" score={data.visualForensics?.confidence || 0} icon="🔬" />
+                  <ScoreCard label="Suspicion" score={100 - (data.visualForensics?.suspicionScore || 0)} icon="⚠️" />
+                </div>
+              )}
+              {isArticleData && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <ScoreCard label="Sources" score={data.detailedAnalysis?.sourceCitations?.score || 0} icon="📚" />
+                  <ScoreCard
+                    label="Writing Quality"
+                    score={data.detailedAnalysis?.writingQuality?.score || 0}
+                    icon="✍️"
+                  />
+                  <ScoreCard label="Factual Claims" score={data.detailedAnalysis?.factualClaims?.score || 0} icon="✓" />
+                  <ScoreCard label="Bias Detection" score={data.detailedAnalysis?.biasDetection?.score || 0} icon="⚖️" />
+                </div>
+              )}
             </div>
           )}
 
-          {activeTab === "osint" && (
+          {isImageData && activeTab === "metadata" && (
             <div className="p-6 rounded border border-border bg-surface/30 space-y-4">
-              <h3 className="font-playfair text-xl font-bold">OSINT Investigation</h3>
-              <div className="grid gap-4">
-                {data?.osint_details?.map((detail: any, idx: number) => (
-                  <div key={idx} className="p-4 bg-surface rounded border border-border/50">
-                    <p className="font-semibold text-accent">{detail.finding}</p>
-                    <p className="text-foreground/70 text-sm mt-1">{detail.description}</p>
-                  </div>
-                ))}
-              </div>
+              <h3 className="font-playfair text-xl font-bold">Metadata Analysis</h3>
+              {data.metadataAnalysis ? (
+                <MetadataSection metadata={data.metadataAnalysis} />
+              ) : (
+                <p className="text-foreground/60">No metadata analysis available</p>
+              )}
             </div>
           )}
 
-          {activeTab === "sources" && <SourcesList sources={data?.sources || []} />}
+          {isImageData && activeTab === "forensics" && (
+            <div className="p-6 rounded border border-border bg-surface/30 space-y-4">
+              <h3 className="font-playfair text-xl font-bold">Visual Forensics</h3>
+              {data.visualForensics?.analyses ? (
+                <div className="space-y-4">
+                  {Object.entries(data.visualForensics.analyses).map(([key, value]: [string, any]) => (
+                    <div key={key} className="p-4 bg-surface rounded border border-border/50">
+                      <p className="font-semibold text-accent capitalize">{key.replace(/([A-Z])/g, " $1")}</p>
+                      <p className="text-foreground/70 text-sm mt-1">
+                        {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-foreground/60">No forensics data available</p>
+              )}
+            </div>
+          )}
 
-          {activeTab === "red-flags" && <RedFlagsList flags={data?.red_flags || []} />}
+          {isImageData && activeTab === "warnings" && (
+            <RedFlagsList
+              flags={
+                data.allWarnings?.map((warning: string) => ({
+                  type: warning,
+                  severity: "medium",
+                  description: "Warning detected during analysis",
+                })) || []
+              }
+            />
+          )}
 
-          {activeTab === "hedera" && <HederaProofs proofs={data?.hedera_proofs || []} />}
+          {isArticleData && activeTab === "documentInfo" && (
+            <div className="p-6 rounded border border-border bg-surface/30 space-y-4">
+              <h3 className="font-playfair text-xl font-bold">Document Information</h3>
+              {data.documentInfo ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-surface rounded border border-border/50">
+                    <p className="text-sm text-foreground/60 mb-1">Pages</p>
+                    <p className="text-xl font-bold text-accent">{data.documentInfo?.pages || "N/A"}</p>
+                  </div>
+                  <div className="p-4 bg-surface rounded border border-border/50">
+                    <p className="text-sm text-foreground/60 mb-1">Word Count</p>
+                    <p className="text-xl font-bold text-accent">{data.documentInfo?.wordCount || "N/A"}</p>
+                  </div>
+                  <div className="p-4 bg-surface rounded border border-border/50">
+                    <p className="text-sm text-foreground/60 mb-1">Characters</p>
+                    <p className="text-xl font-bold text-accent">{data.documentInfo?.characterCount || "N/A"}</p>
+                  </div>
+                  <div className="p-4 bg-surface rounded border border-border/50">
+                    <p className="text-sm text-foreground/60 mb-1">Author</p>
+                    <p className="text-sm text-foreground">{data.documentInfo?.metadata?.author || "Unknown"}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-foreground/60">No document info available</p>
+              )}
+            </div>
+          )}
+
+          {isArticleData && activeTab === "analysis" && (
+            <div className="p-6 rounded border border-border bg-surface/30 space-y-4">
+              <h3 className="font-playfair text-xl font-bold">Detailed Analysis</h3>
+              {data.detailedAnalysis ? (
+                <div className="grid gap-4">
+                  {Object.entries(data.detailedAnalysis).map(([key, value]: [string, any]) => (
+                    <div key={key} className="p-4 bg-surface rounded border border-border/50">
+                      <p className="font-semibold text-accent capitalize">{key.replace(/([A-Z])/g, " $1")}</p>
+                      <p className="text-foreground/70 text-sm mt-1">
+                        {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-foreground/60">No analysis data available</p>
+              )}
+            </div>
+          )}
+
+          {activeTab === "recommendations" && <RecommendationsList recommendations={data.recommendations || []} />}
         </div>
       </div>
-
-      {/* EXIF Data (if available) */}
-      {data?.exif_metadata && (
-        <div className="max-w-6xl mx-auto mt-12">
-          <ExifData data={data.exif_metadata} />
-        </div>
-      )}
-
-      {/* Summary */}
-      {data?.summary && (
-        <div className="max-w-6xl mx-auto mt-12 p-8 rounded border border-accent/20 bg-surface/50">
-          <h3 className="font-playfair text-xl font-bold mb-4">Analysis Summary</h3>
-          <p className="text-foreground/70 leading-relaxed">{data.summary}</p>
-        </div>
-      )}
     </div>
   )
 }

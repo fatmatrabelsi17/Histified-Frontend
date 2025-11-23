@@ -9,6 +9,7 @@ import LoadingPage from "@/components/pages/loading-page"
 import ResultsPage from "@/components/pages/results-page"
 import FeaturesPage from "@/components/pages/features-page"
 import AboutPage from "@/components/pages/about-page"
+import VerificationAPI from "@/lib/api";
 
 type PageState = "home" | "upload" | "loading" | "results" | "features" | "about" | "error"
 
@@ -23,35 +24,27 @@ export default function Home() {
   }
 
   const handleFileSelected = async (file: File) => {
-    setUploadedFile(file)
-    setCurrentPage("loading")
-    setErrorMessage("")
+    setUploadedFile(file);
+    setCurrentPage("loading");
+    setErrorMessage("");
 
     try {
-      const isImage = file.type.startsWith("image")
-      const endpoint = isImage ? "/api/verify-image" : "/api/verify-article"
-
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error(`Backend returned status ${response.status}`)
+      let data;
+      if (file.type.startsWith("image")) {
+        data = await VerificationAPI.verifyImage(file);
+      } else if (file.type === "application/pdf") {
+        data = await VerificationAPI.verifyArticle(file);
+      } else {
+        throw new Error("Unsupported file type: only images or PDFs are allowed.");
       }
-
-      const data = await response.json()
-      setAnalysisData(data)
-      setCurrentPage("results")
+      setAnalysisData(data);
+      setCurrentPage("results");
     } catch (error) {
-      console.error("[v0] Analysis failed:", error)
-      setErrorMessage(error instanceof Error ? error.message : "Analysis failed. Please try again.")
-      setCurrentPage("error")
+      console.error("Analysis failed:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Analysis failed. Please try again.");
+      setCurrentPage("error");
     }
-  }
+  };
 
   const handleBackToUpload = () => {
     setCurrentPage("upload")

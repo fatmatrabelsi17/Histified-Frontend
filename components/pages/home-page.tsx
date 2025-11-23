@@ -17,7 +17,7 @@ export default function HomePage({ onStartAnalysis }: HomePageProps) {
           <span className="text-xs uppercase tracking-widest text-accent">Classified Analysis Platform</span>
         </div>
 
-        <h1 className="text-6xl md:text-7xl font-playfair font-bold mb-6 text-foreground leading-tight">VerityCheck</h1>
+        <h1 className="text-6xl md:text-7xl font-playfair font-bold mb-6 text-foreground leading-tight">Histified</h1>
 
         <p className="text-xl text-foreground/70 mb-4 font-lora">
           Digital Forensic Intelligence & Authenticity Verification
